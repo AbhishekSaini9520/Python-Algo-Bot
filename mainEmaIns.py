@@ -156,8 +156,8 @@ def run_timeframe(instrument: str, timeframe: str):
                 precision_format = '1.' + '0' * precision
 
                 # Fixed SL and TP
-                sl = (entry - Decimal('100')).quantize(Decimal(precision_format), rounding=ROUND_DOWN)
-                tp = (entry + Decimal('200')).quantize(Decimal(precision_format), rounding=ROUND_DOWN)
+                sl = (entry - Decimal('10')).quantize(Decimal(precision_format), rounding=ROUND_DOWN)
+                tp = (entry + Decimal('20')).quantize(Decimal(precision_format), rounding=ROUND_DOWN)
 
                 if sl >= entry:
                     logging.warning(f"Invalid SL {sl} >= entry {entry} for {instrument} {timeframe}, skipping trade.")

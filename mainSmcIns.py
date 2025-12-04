@@ -156,8 +156,8 @@ def run_for_instrument_and_timeframe(instrument: str, timeframe: str):
                 entry = last["close"]
 
                 # Fixed SL and TP
-                sl_price = round(entry + 100, precision)
-                tp_price = round(entry - 200, precision)
+                sl_price = round(entry + 10, precision)
+                tp_price = round(entry - 20, precision)
 
                 if sl_price <= entry:
                     logging.warning(f"Invalid SL {sl_price} <= entry {entry} for {instrument} {timeframe}, skipping trade.")
