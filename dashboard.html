@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trading Bot Dashboard - Real-time Signals & Trades</title>
+    <link rel="stylesheet" href="styles_enhanced.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🤖 Trading Bot Dashboard</h1>
+            <p>Real-time signals, trades, and performance metrics</p>
+        </div>
+
+        <!-- Status Bar -->
+        <div class="status-bar">
+            <div class="status-card">
+                <div class="status-label">Status</div>
+                <div class="status-value">
+                    <span class="live-indicator"></span><span id="status-text">LIVE</span>
+                </div>
+            </div>
+            <div class="status-card">
+                <div class="status-label">Account Balance</div>
+                <div class="status-value" id="account-balance">$10,000</div>
+            </div>
+            <div class="status-card">
+                <div class="status-label">Floating P&L</div>
+                <div class="status-value" id="floating-pnl">+$0</div>
+            </div>
+            <div class="status-card">
+                <div class="status-label">Open Positions</div>
+                <div class="status-value info" id="open-positions">0</div>
+            </div>
+            <div class="status-card">
+                <div class="status-label">Win Rate</div>
+                <div class="status-value" id="win-rate">0%</div>
+            </div>
+            <div class="status-card">
+                <div class="status-label">Total Trades</div>
+                <div class="status-value" id="total-trades">0</div>
+            </div>
+        </div>
+
+        <!-- Real-time Signals Section -->
+        <div class="panel" style="margin-bottom: 25px; border-left: 5px solid #3b82f6;">
+            <div class="panel-title">📊 Real-time Trading Signals</div>
+            <div id="signals-container" class="signals-feed">
+                <p style="color: #94a3b8; text-align: center; padding: 20px;">Waiting for trading signals...</p>
+            </div>
+        </div>
+
+        <!-- Main Grid -->
+        <div class="grid-2">
+            <!-- Active Positions -->
+            <div class="panel">
+                <div class="panel-title">Active Positions</div>
+                <div id="active-positions-container">
+                    <p style="color: #94a3b8; text-align: center; padding: 20px;">No active positions</p>
+                </div>
+                <div class="controls">
+                    <button class="btn btn-secondary" onclick="refreshPositions()">🔄 Refresh</button>
+                </div>
+            </div>
+
+            <!-- Performance Stats -->
+            <div class="panel">
+                <div class="panel-title">Performance Metrics</div>
+                <div class="stats-grid">
+                    <div class="stat-box">
+                        <div class="stat-label">Total Trades</div>
+                        <div class="stat-value" id="stat-total-trades">0</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Win Rate</div>
+                        <div class="stat-value" id="stat-win-rate">0%</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Winning Trades</div>
+                        <div class="stat-value" id="stat-winning">0</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Losing Trades</div>
+                        <div class="stat-value negative" id="stat-losing">0</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Floating P&L</div>
+                        <div class="stat-value" id="stat-floating-pnl">+$0</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Account Balance</div>
+                        <div class="stat-value" id="stat-balance">$10,000</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Trades -->
+        <div class="panel" style="margin-top: 25px;">
+            <div class="panel-title">Recent Trades History</div>
+            <div id="recent-trades-container">
+                <p style="color: #94a3b8; text-align: center; padding: 20px;">No recent trades</p>
+            </div>
+        </div>
+
+        <!-- System Status -->
+        <div class="panel" style="margin-top: 25px;">
+            <div class="panel-title">System Status</div>
+            <div id="system-status">
+                <div class="alert alert-warning">
+                    ⏳ Connecting to backend...
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>⚠️ DISCLAIMER: This bot is in PRACTICE MODE. Test thoroughly before live trading.</p>
+            <p style="margin-top: 10px; font-size: 0.9em;" id="last-update">Last updated: -</p>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="script_enhanced.js"></script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🤖 Trading Bot Dashboard</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #00ff88;
+            --danger: #ff3366;
+            --warning: #ffaa00;
+            --success: #00dd77;
+            --info: #00ccff;
+            --dark: #0a0e27;
+            --darker: #050811;
+            --light: #1a1f3a;
+            --lighter: #252d47;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, var(--dark) 0%, var(--darker) 100%);
+            color: #e0e0e0;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 20px 0;
+            border-bottom: 2px solid var(--primary);
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.2);
+        }
+
+        h1 {
+            font-size: 2.5em;
+            color: var(--primary);
+            text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+            margin-bottom: 5px;
+        }
+
+        .subtitle {
+            color: var(--info);
+            font-size: 1.1em;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, var(--light) 0%, var(--lighter) 100%);
+            border: 2px solid var(--primary);
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 0 30px rgba(0, 255, 136, 0.1),
+                        inset 0 0 30px rgba(0, 255, 136, 0.05);
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 0 50px rgba(0, 255, 136, 0.3),
+                        inset 0 0 30px rgba(0, 255, 136, 0.1);
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            color: var(--info);
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 1px;
+        }
+
+        .stat-value {
+            font-size: 2.2em;
+            font-weight: 700;
+            color: var(--primary);
+            text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+        }
+
+        /* Special styling for specific values */
+        .stat-card.live {
+            border-color: var(--success);
+        }
+
+        .stat-card.live .stat-value {
+            color: var(--success);
+            text-shadow: 0 0 10px rgba(0, 221, 119, 0.5);
+        }
+
+        .stat-card.warning {
+            border-color: var(--warning);
+        }
+
+        .stat-card.warning .stat-value {
+            color: var(--warning);
+            text-shadow: 0 0 10px rgba(255, 170, 0, 0.5);
+        }
+
+        /* Win Rate Color Logic */
+        .win-rate {
+            border-color: var(--danger) !important;
+        }
+
+        .win-rate.red .stat-value {
+            color: var(--danger) !important;
+            text-shadow: 0 0 10px rgba(255, 51, 102, 0.5) !important;
+        }
+
+        .win-rate.green .stat-value {
+            color: var(--success) !important;
+            text-shadow: 0 0 10px rgba(0, 221, 119, 0.5) !important;
+        }
+
+        /* Main content area */
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .panel {
+            background: linear-gradient(135deg, var(--light) 0%, var(--lighter) 100%);
+            border: 2px solid var(--primary);
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 0 30px rgba(0, 255, 136, 0.1),
+                        inset 0 0 30px rgba(0, 255, 136, 0.05);
+        }
+
+        .panel h2 {
+            color: var(--primary);
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            text-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 10px;
+        }
+
+        /* Signals list */
+        .signals-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .signal-item {
+            background: rgba(0, 255, 136, 0.05);
+            border-left: 4px solid var(--primary);
+            padding: 15px;
+            margin-bottom: 12px;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+            animation: slideIn 0.5s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .signal-item:hover {
+            background: rgba(0, 255, 136, 0.1);
+            transform: translateX(5px);
+        }
+
+        .signal-type {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-size: 0.85em;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .signal-type.bullish {
+            background: rgba(0, 221, 119, 0.3);
+            color: var(--success);
+        }
+
+        .signal-type.bearish {
+            background: rgba(255, 51, 102, 0.3);
+            color: var(--danger);
+        }
+
+        .signal-type.candle {
+            background: rgba(0, 204, 255, 0.3);
+            color: var(--info);
+        }
+
+        .signal-message {
+            color: #fff;
+            font-size: 0.95em;
+            margin-bottom: 5px;
+        }
+
+        .signal-time {
+            color: var(--info);
+            font-size: 0.85em;
+        }
+
+        /* Positions list */
+        .positions-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .position-item {
+            background: rgba(0, 204, 255, 0.05);
+            border-left: 4px solid var(--info);
+            padding: 15px;
+            margin-bottom: 12px;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+        }
+
+        .position-item:hover {
+            background: rgba(0, 204, 255, 0.1);
+            transform: translateX(5px);
+        }
+
+        .position-type {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-size: 0.85em;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: white;
+        }
+
+        .position-type.buy {
+            background: rgba(0, 221, 119, 0.4);
+        }
+
+        .position-type.sell {
+            background: rgba(255, 51, 102, 0.4);
+        }
+
+        .position-details {
+            color: #ccc;
+            font-size: 0.9em;
+            line-height: 1.6;
+        }
+
+        .position-details strong {
+            color: var(--primary);
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 255, 136, 0.05);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--primary);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--info);
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .last-update {
+            text-align: center;
+            color: var(--info);
+            font-size: 0.9em;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(0, 255, 136, 0.2);
+        }
+
+        .disclaimer {
+            background: rgba(255, 170, 0, 0.1);
+            border: 1px solid var(--warning);
+            border-radius: 5px;
+            padding: 15px;
+            margin-top: 20px;
+            color: var(--warning);
+            text-align: center;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 Trading Bot Dashboard</h1>
+            <p class="subtitle">Real-time signals, trades, and performance metrics</p>
+        </header>
+
+        <!-- Stats Grid -->
+        <div class="stats-grid">
+            <div class="stat-card live">
+                <div class="stat-label">STATUS</div>
+                <div class="stat-value">● LIVE</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">💰 ACCOUNT BALANCE</div>
+                <div class="stat-value" id="balance">$10,000.00</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">FLOATING P&L</div>
+                <div class="stat-value" id="floating-pnl">+$0.00</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">OPEN POSITIONS</div>
+                <div class="stat-value" id="open-positions">0</div>
+            </div>
+
+            <div class="stat-card win-rate" id="winrate-card">
+                <div class="stat-label">WIN RATE</div>
+                <div class="stat-value" id="win-rate">0%</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">TOTAL TRADES</div>
+                <div class="stat-value" id="total-trades">43</div>
+            </div>
+        </div>
+
+        <!-- Content Area -->
+        <div class="content">
+            <!-- Real-time Signals -->
+            <div class="panel">
+                <h2>📊 Real-time Trading Signals</h2>
+                <div class="signals-list" id="signals-list">
+                    <div class="signal-item">
+                        <span class="signal-type candle">CANDLE_COMPLETE</span>
+                        <div class="signal-message">Waiting for trading signals...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Active Positions -->
+            <div class="panel">
+                <h2>📈 Active Positions</h2>
+                <div class="positions-list" id="positions-list">
+                    <div class="position-item">
+                        <div class="signal-message">No active positions</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Trades -->
+        <div class="panel">
+            <h2>📝 Recent Trades</h2>
+            <div class="positions-list" id="recent-trades">
+                <div class="position-item">
+                    <div class="signal-message">No recent trades</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="disclaimer">
+            ⚠️ DISCLAIMER: This bot is in PRACTICE MODE. Test thoroughly before live trading.
+        </div>
+
+        <div class="last-update">
+            Last updated: <span id="last-update">-</span>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+
+        function formatCurrency(value) {
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD',
+                minimumFractionDigits: 2
+            }).format(value);
+        }
+
+        function updateWinRateColor(winRate) {
+            const card = document.getElementById('winrate-card');
+            if (winRate < 30) {
+                card.classList.remove('green');
+                card.classList.add('red');
+            } else {
+                card.classList.remove('red');
+                card.classList.add('green');
+            }
+        }
+
+        // ✅ Candle update - only update when candle_complete signal received
+        let lastCandle = null;
+        socket.on('trading_signal', function(signal) {
+            // ✅ FIX: Only add candle_complete to signals once per candle completion
+            if (signal.type === 'candle_complete' && lastCandle === signal.message) {
+                return; // Skip duplicate candle signals
+            }
+            if (signal.type === 'candle_complete') {
+                lastCandle = signal.message;
+            }
+
+            const signalsList = document.getElementById('signals-list');
+            if (signalsList.children.length === 1 && signalsList.children.innerHTML.includes('Waiting')) {
+                signalsList.innerHTML = '';
+            }
+
+            const signalEl = document.createElement('div');
+            signalEl.className = 'signal-item';
+            
+            let typeClass = 'candle';
+            if (signal.type === 'bullish') typeClass = 'bullish';
+            if (signal.type === 'bearish') typeClass = 'bearish';
+            
+            signalEl.innerHTML = `
+                <span class="signal-type ${typeClass}">${signal.type.toUpperCase()}</span>
+                <div class="signal-message">${signal.message}</div>
+                <div class="signal-time">${signal.timestamp}</div>
+            `;
+            
+            signalsList.insertBefore(signalEl, signalsList.firstChild);
+            
+            // Keep only last 20 signals
+            while (signalsList.children.length > 20) {
+                signalsList.removeChild(signalsList.lastChild);
+            }
+        });
+
+        // ✅ Bot update - fetch balance on every update
+        socket.on('bot_update', function(botState) {
+            // Update balance (will be fetched from Oanda)
+            document.getElementById('balance').textContent = formatCurrency(botState.account_balance || 10000);
+            
+            // Update P&L
+            document.getElementById('floating-pnl').textContent = formatCurrency(botState.floating_pnl || 0);
+            
+            // Update open positions
+            document.getElementById('open-positions').textContent = botState.open_positions || 0;
+            
+            // ✅ FIX: Update win rate with color
+            const winRate = botState.win_rate || 0;
+            document.getElementById('win-rate').textContent = winRate.toFixed(1) + '%';
+            updateWinRateColor(winRate);
+            
+            // Update total trades
+            document.getElementById('total-trades').textContent = botState.total_trades || 0;
+            
+            // Update active positions
+            const positionsList = document.getElementById('positions-list');
+            if (botState.active_positions && botState.active_positions.length > 0) {
+                positionsList.innerHTML = botState.active_positions.map(pos => `
+                    <div class="position-item">
+                        <span class="position-type ${pos.type.toLowerCase()}">${pos.type}</span>
+                        <div class="position-details">
+                            <strong>${pos.instrument}</strong> | ${pos.timeframe}<br>
+                            Entry: ${formatCurrency(pos.entry)}<br>
+                            SL: ${formatCurrency(pos.sl)} | TP: ${formatCurrency(pos.tp)}<br>
+                            P&L: <span style="color: ${pos.pnl >= 0 ? '#00dd77' : '#ff3366'}">${formatCurrency(pos.pnl || 0)}</span>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                positionsList.innerHTML = '<div class="position-item"><div class="signal-message">No active positions</div></div>';
+            }
+            
+            // Update recent trades
+            const tradesList = document.getElementById('recent-trades');
+            if (botState.recent_trades && botState.recent_trades.length > 0) {
+                tradesList.innerHTML = botState.recent_trades.slice().reverse().slice(0, 10).map(trade => `
+                    <div class="position-item">
+                        <span class="position-type ${trade.type.toLowerCase()}">${trade.type}</span>
+                        <div class="position-details">
+                            <strong>${trade.instrument}</strong> | ${trade.timeframe}<br>
+                            Entry: ${formatCurrency(trade.entry)}<br>
+                            Exit: ${formatCurrency(trade.exit_price || trade.tp)}<br>
+                            P&L: <span style="color: ${trade.pnl >= 0 ? '#00dd77' : '#ff3366'}">${formatCurrency(trade.pnl || 0)}</span>
+                        </div>
+                    </div>
+                `).join('');
+            }
+            
+            document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+        });
+
+        // Request initial data
+        socket.emit('request_update');
+    </script>
+</body>
+</html>
