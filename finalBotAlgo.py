@@ -4,10 +4,41 @@ Ready to use with your Oanda account
 """
 
 
+# import time
+# import logging
+# import requests
+# import pandas as pd
+# import matplotlib
+# matplotlib.use('Agg')
+# import matplotlib.patches as mpatches
+# import matplotlib.pyplot as plt
+# import pandas as pd
+# import torch
+# from PIL import Image
+# from torchvision import transforms
+# from pathlib import Path
+# from dataclasses import dataclass, field
+# from threading import Thread
+# from typing import Dict
 import time
 import logging
 import requests
 import pandas as pd
+
+# ✅ MATPLOTLIB - Set backend FIRST
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+
+# ✅ PYTORCH - All required imports
+import torch
+import torch.nn as nn
+from torchvision import transforms, models
+from PIL import Image
+
+# ✅ Other imports
+from pathlib import Path
 from dataclasses import dataclass, field
 from threading import Thread
 from typing import Dict
@@ -344,6 +375,117 @@ def place_market_sell_with_sl_tp(instrument: str, units: int, sl_price: float, t
         return False
 
 
+# def run_for_instrument_and_timeframe(instrument: str, timeframe: str):
+#     """Main trading loop for one instrument+timeframe combination"""
+#     logging.info(f"🚀 Starting {instrument} bot for {timeframe}")
+#     last_time = None
+#     precision = INSTRUMENT_PRECISION.get(instrument, 2)
+    
+#     while True:
+#         try:
+#             # Fetch OHLC data
+#             df = fetch_ohlc(instrument, timeframe, CFG.lookback_candles)
+#             if df.empty or len(df) < CFG.ema_slow + 1:
+#                 logging.warning(f"⚠️ Not enough data for {instrument} {timeframe}")
+#                 time.sleep(CFG.poll_sec)
+#                 continue
+
+#             # Filter only completed candles
+#             df = df[df["complete"] == True].copy()
+#             if df.empty:
+#                 logging.info(f"⏳ No completed candle yet for {instrument} {timeframe}")
+#                 time.sleep(CFG.poll_sec)
+#                 continue
+
+#             # Calculate indicators
+#             df = compute_emas(df, CFG.ema_fast, CFG.ema_slow)
+#             last = df.iloc[-1]
+#             time_stamp = df.index[-1]
+
+#             # Skip if same candle
+#             if time_stamp == last_time:
+#                 time.sleep(CFG.poll_sec)
+#                 continue
+#             last_time = time_stamp
+
+#             # Calculate ATR
+#             atr = calculate_atr(df, CFG.atr_period) if CFG.use_atr else 1.0
+
+#             logging.info(f"📊 {instrument} {timeframe} @ {time_stamp} | "
+#                          f"O:{last['open']:.2f} H:{last['high']:.2f} L:{last['low']:.2f} C:{last['close']:.2f} | "
+#                          f"ATR:{atr:.2f}")
+            
+#             send_signal(
+#                 "candle_complete",
+#                 f"⏳ {timeframe} Candle Completed | {instrument} | O:{last['open']:.2f} H:{last['high']:.2f} L:{last['low']:.2f} C:{last['close']:.2f}",
+#                 instrument,
+#                 timeframe
+#             )
+
+#             # Skip if position exists
+#             if has_active_position(instrument, timeframe):
+#                 logging.info(f"⏸️ Already in position for {instrument} {timeframe}")
+#                 time.sleep(CFG.poll_sec)
+#                 continue
+
+#             # ✅ CHECK FOR BEARISH HAMMER (SELL SIGNAL)
+#             if is_bearish_hammer(last) and is_downtrend(last):
+#                 entry = last["close"]
+
+#                 send_signal(
+#                         "bearish",
+#                         f"🔴 Bearish Hammer Detected | {instrument} {timeframe} | Entry: ${entry:.2f}",
+#                         instrument,
+#                         timeframe
+#                     )
+
+#                 sl_price, tp_price, sl_dist, tp_dist = calculate_dynamic_sl_tp(entry, atr, precision, "SELL")
+
+#                 send_new_trade("SELL", instrument, timeframe, entry, sl_price, tp_price)
+
+#                 if sl_price <= entry and tp_price < entry:
+#                     update_backend("new_trade", {
+#                         "type": "SELL",
+#                         "instrument": instrument,      # ✅ Available from outer loop
+#                         "entry": entry,                 # ✅ Just calculated
+#                         "sl": sl_price,                 # ✅ Just calculated
+#                         "tp": tp_price                  # ✅ Just calculated
+#                     })
+#                     logging.info(f"🔴 SELL signal! Entry={entry:.{precision}f}, SL={sl_price:.{precision}f}, TP={tp_price:.{precision}f}")
+#                     place_market_sell_with_sl_tp(instrument, CFG.units, sl_price=sl_price, tp_price=tp_price, 
+#                                                  entry=entry, atr=atr, timeframe=timeframe)
+
+#             # ✅ CHECK FOR BULLISH HAMMER (BUY SIGNAL)
+#             elif is_bullish_hammer(last) and is_uptrend(last):
+#                 entry = last["close"]
+#                 send_signal(
+#                     "bullish",
+#                     f"🟢 Bullish Hammer Detected | {instrument} {timeframe} | Entry: ${entry:.2f}",
+#                     instrument,
+#                     timeframe
+#                 )
+#                 sl_price, tp_price, sl_dist, tp_dist = calculate_dynamic_sl_tp(entry, atr, precision, "BUY")
+
+#                 send_new_trade("BUY", instrument, timeframe, entry, sl_price, tp_price)
+
+#                 if sl_price < entry and tp_price > entry:
+#                     update_backend("new_trade", {
+#                         "type": "BUY",
+#                         "instrument": instrument,      # ✅ Available from outer loop
+#                         "entry": entry,                 # ✅ Just calculated
+#                         "sl": sl_price,                 # ✅ Just calculated
+#                         "tp": tp_price                  # ✅ Just calculated
+#                     })
+#                     logging.info(f"🟢 BUY signal! Entry={entry:.{precision}f}, SL={sl_price:.{precision}f}, TP={tp_price:.{precision}f}")
+#                     place_market_buy_with_sl_tp(instrument, CFG.units, sl_price=sl_price, tp_price=tp_price, 
+#                                                 entry=entry, atr=atr, timeframe=timeframe)
+
+#             time.sleep(CFG.poll_sec)
+
+#         except Exception as e:
+#             logging.exception(f"❌ Error in {instrument} {timeframe}: {e}")
+#             time.sleep(CFG.poll_sec)
+
 def run_for_instrument_and_timeframe(instrument: str, timeframe: str):
     """Main trading loop for one instrument+timeframe combination"""
     logging.info(f"🚀 Starting {instrument} bot for {timeframe}")
@@ -397,64 +539,129 @@ def run_for_instrument_and_timeframe(instrument: str, timeframe: str):
                 time.sleep(CFG.poll_sec)
                 continue
 
-            # ✅ CHECK FOR BEARISH HAMMER (SELL SIGNAL)
-            if is_bearish_hammer(last) and is_downtrend(last):
+            # Save chart for model prediction
+            chart_path = f"charts/{instrument}_{timeframe}_{int(time.time())}.png"
+            save_candlestick_chart(df.tail(40), chart_path)  # Last 40 candles for chart
+
+            # Get model prediction
+            model_result = predict_hammer(chart_path)
+
+            # OR logic: if either model or logic detects a signal
+            # if (model_result["is_hammer"] and model_result["confidence"] > 0.7) or (is_bearish_hammer(last) and is_downtrend(last)):
+            #     entry = last["close"]
+            #     send_signal(
+            #         "bearish",
+            #         f"🔴 Bearish Hammer Detected | {instrument} {timeframe} | Entry: ${entry:.2f}",
+            #         instrument,
+            #         timeframe
+            #     )
+            #     sl_price, tp_price, sl_dist, tp_dist = calculate_dynamic_sl_tp(entry, atr, precision, "SELL")
+            #     send_new_trade("SELL", instrument, timeframe, entry, sl_price, tp_price)
+            #     if sl_price <= entry and tp_price < entry:
+            #         update_backend("new_trade", {
+            #             "type": "SELL",
+            #             "instrument": instrument,
+            #             "entry": entry,
+            #             "sl": sl_price,
+            #             "tp": tp_price
+            #         })
+            #         logging.info(f"🔴 SELL signal! Entry={entry:.{precision}f}, SL={sl_price:.{precision}f}, TP={tp_price:.{precision}f}")
+            #         place_market_sell_with_sl_tp(instrument, CFG.units, sl_price=sl_price, tp_price=tp_price, 
+            #                                    entry=entry, atr=atr, timeframe=timeframe)
+
+            # elif (model_result["is_hammer"] and model_result["confidence"] > 0.7) or (is_bullish_hammer(last) and is_uptrend(last)):
+            #     entry = last["close"]
+            #     send_signal(
+            #         "bullish",
+            #         f"🟢 Bullish Hammer Detected | {instrument} {timeframe} | Entry: ${entry:.2f}",
+            #         instrument,
+            #         timeframe
+            #     )
+            #     sl_price, tp_price, sl_dist, tp_dist = calculate_dynamic_sl_tp(entry, atr, precision, "BUY")
+            #     send_new_trade("BUY", instrument, timeframe, entry, sl_price, tp_price)
+            #     if sl_price < entry and tp_price > entry:
+            #         update_backend("new_trade", {
+            #             "type": "BUY",
+            #             "instrument": instrument,
+            #             "entry": entry,
+            #             "sl": sl_price,
+            #             "tp": tp_price
+            #         })
+            #         logging.info(f"🟢 BUY signal! Entry={entry:.{precision}f}, SL={sl_price:.{precision}f}, TP={tp_price:.{precision}f}")
+            #         place_market_buy_with_sl_tp(instrument, CFG.units, sl_price=sl_price, tp_price=tp_price, 
+            #                                   entry=entry, atr=atr, timeframe=timeframe)
+
+# After model_result = predict_hammer(chart_path)
+
+            is_model_hammer = model_result["is_hammer"] and model_result["confidence"] >= 0.7
+
+            bearish_confirmed = (
+                is_model_hammer
+                and is_bearish_hammer(last)
+                and is_downtrend(last)
+            )
+
+            bullish_confirmed = (
+                is_model_hammer
+                and is_bullish_hammer(last)
+                and is_uptrend(last)
+            )
+
+            if bearish_confirmed:
                 entry = last["close"]
-
                 send_signal(
-                        "bearish",
-                        f"🔴 Bearish Hammer Detected | {instrument} {timeframe} | Entry: ${entry:.2f}",
-                        instrument,
-                        timeframe
-                    )
-
+                    "bearish",
+                    f"🔴 Bearish Hammer (MODEL+LOGIC) | {instrument} {timeframe} | Entry: ${entry:.2f}",
+                    instrument,
+                    timeframe,
+                )
                 sl_price, tp_price, sl_dist, tp_dist = calculate_dynamic_sl_tp(entry, atr, precision, "SELL")
-
                 send_new_trade("SELL", instrument, timeframe, entry, sl_price, tp_price)
-
                 if sl_price <= entry and tp_price < entry:
                     update_backend("new_trade", {
                         "type": "SELL",
-                        "instrument": instrument,      # ✅ Available from outer loop
-                        "entry": entry,                 # ✅ Just calculated
-                        "sl": sl_price,                 # ✅ Just calculated
-                        "tp": tp_price                  # ✅ Just calculated
+                        "instrument": instrument,
+                        "entry": entry,
+                        "sl": sl_price,
+                        "tp": tp_price,
                     })
-                    logging.info(f"🔴 SELL signal! Entry={entry:.{precision}f}, SL={sl_price:.{precision}f}, TP={tp_price:.{precision}f}")
-                    place_market_sell_with_sl_tp(instrument, CFG.units, sl_price=sl_price, tp_price=tp_price, 
-                                                 entry=entry, atr=atr, timeframe=timeframe)
+                place_market_sell_with_sl_tp(
+                    instrument, CFG.units,
+                    sl_price=sl_price, tp_price=tp_price,
+                    entry=entry, atr=atr, timeframe=timeframe,
+                )
 
-            # ✅ CHECK FOR BULLISH HAMMER (BUY SIGNAL)
-            elif is_bullish_hammer(last) and is_uptrend(last):
+            elif bullish_confirmed:
                 entry = last["close"]
                 send_signal(
                     "bullish",
-                    f"🟢 Bullish Hammer Detected | {instrument} {timeframe} | Entry: ${entry:.2f}",
+                    f"🟢 Bullish Hammer (MODEL+LOGIC) | {instrument} {timeframe} | Entry: ${entry:.2f}",
                     instrument,
-                    timeframe
+                    timeframe,
                 )
                 sl_price, tp_price, sl_dist, tp_dist = calculate_dynamic_sl_tp(entry, atr, precision, "BUY")
-
                 send_new_trade("BUY", instrument, timeframe, entry, sl_price, tp_price)
-
                 if sl_price < entry and tp_price > entry:
                     update_backend("new_trade", {
                         "type": "BUY",
-                        "instrument": instrument,      # ✅ Available from outer loop
-                        "entry": entry,                 # ✅ Just calculated
-                        "sl": sl_price,                 # ✅ Just calculated
-                        "tp": tp_price                  # ✅ Just calculated
+                        "instrument": instrument,
+                        "entry": entry,
+                        "sl": sl_price,
+                        "tp": tp_price,
                     })
-                    logging.info(f"🟢 BUY signal! Entry={entry:.{precision}f}, SL={sl_price:.{precision}f}, TP={tp_price:.{precision}f}")
-                    place_market_buy_with_sl_tp(instrument, CFG.units, sl_price=sl_price, tp_price=tp_price, 
-                                                entry=entry, atr=atr, timeframe=timeframe)
+                place_market_buy_with_sl_tp(
+                    instrument, CFG.units,
+                    sl_price=sl_price, tp_price=tp_price,
+                    entry=entry, atr=atr, timeframe=timeframe,
+                )
+
+
 
             time.sleep(CFG.poll_sec)
 
         except Exception as e:
             logging.exception(f"❌ Error in {instrument} {timeframe}: {e}")
             time.sleep(CFG.poll_sec)
-
 
 def run_all():
     """Start bot for all instruments and timeframes"""
@@ -639,26 +846,170 @@ def send_trade_close(instrument, timeframe, exit_price, pnl):
         logger.debug(f"Trade close send skipped: {e}")
 
 
-
-# if __name__ == "__main__":
-#     load_historical_trades()
-
-#     print("\n" + "="*80)
-#     print("🤖 TRADING BOT - OPTIMIZED PARAMETERS")
-#     print("="*80)
-#     print(f"\n✅ Configuration:")
-#     print(f"   Max Lower Shadow: {CFG.max_lower_shadow_factor} (very strict)")
-#     print(f"   Min Upper Shadow: {CFG.min_upper_shadow_ratio} (very strict)")
-#     print(f"   BUY:  SL = {CFG.buy_sl_mult}×ATR, TP = {CFG.buy_tp_mult}×ATR")
-#     print(f"   SELL: SL = {CFG.sell_sl_mult}×ATR, TP = {CFG.sell_tp_mult}×ATR")
-#     print(f"\n📊 Expected Performance:")
-#     print(f"   Win Rate: ~47%")
-#     print(f"   Profit Factor: ~2.36x")
-#     print(f"\n⚠️ WARNING: 47% win rate is still below 55% threshold")
-#     print(f"   Run in PRACTICE mode for 1-2 weeks before live trading")
-#     print("\n" + "="*80 + "\n")
+# def save_candlestick_chart(df: pd.DataFrame, filename: str):
+#     """Save candlestick chart as PNG"""
+#     fig, ax = plt.subplots(figsize=(10, 6))
     
-#     run_all()
+#     # Plot candles
+#     for i, row in df.iterrows():
+#         color = 'green' if row['close'] >= row['open'] else 'red'
+#         ax.plot([i, i], [row['low'], row['high']], color=color)
+#         ax.add_patch(plt.Rectangle((i-0.3, row['open']), 0.6, row['close']-row['open'], 
+#                                 facecolor=color, edgecolor=color))
+    
+#     # Formatting
+#     ax.set_xlim(-0.5, len(df)-0.5)
+#     ax.set_ylim(df['low'].min()*0.99, df['high'].max()*1.01)
+#     ax.set_title(f"Candlestick Chart")
+#     ax.grid(True, alpha=0.3)
+    
+#     # Save
+#     Path("charts").mkdir(exist_ok=True)
+#     plt.savefig(filename, dpi=100, bbox_inches='tight')
+#     plt.close()
+def save_candlestick_chart(df: pd.DataFrame, filename: str) -> bool:
+    try:
+        df = df.reset_index(drop=True).copy()
+
+        fig, ax = plt.subplots(figsize=(4, 4), dpi=100)  # smaller square
+        fig.patch.set_facecolor('white')
+        ax.set_facecolor('white')
+
+        for i, row in df.iterrows():
+            color = 'green' if row['close'] >= row['open'] else 'red'
+            ax.plot([i, i], [row['low'], row['high']], color=color, linewidth=1.5)
+
+            rect = mpatches.Rectangle(
+                xy=(i - 0.3, min(row['open'], row['close'])),
+                width=0.6,
+                height=abs(row['close'] - row['open']),
+                facecolor=color,
+                edgecolor=color,
+                linewidth=0.5,
+            )
+            ax.add_patch(rect)
+
+        ax.set_xlim(-0.5, len(df) - 0.5)
+        lows = df['low'].min()
+        highs = df['high'].max()
+        margin = (highs - lows) * 0.05 if highs > lows else 1
+        ax.set_ylim(lows - margin, highs + margin)
+
+        ax.axis('off')  # no axes, pure chart
+
+        Path("charts").mkdir(exist_ok=True)
+        plt.tight_layout(pad=0.1)
+        plt.savefig(filename, dpi=100, bbox_inches='tight')
+        plt.close(fig)
+        return True
+    except Exception as e:
+        logger.error(f"❌ Chart save error: {e}")
+        return False
+
+
+# def predict_hammer(image_path: str) -> dict:
+#     """Predict hammer pattern from chart image"""
+#     # Load your trained model
+#     checkpoint = torch.load("models/cv_hammer_multi.pth", map_location='cpu')
+#     model = ... # Load model architecture and weights (same as your training code)
+#     model.load_state_dict(checkpoint['model_state_dict'])
+#     model.eval()
+    
+#     # Transform
+#     transform = transforms.Compose([
+#         transforms.Resize((224, 224)),
+#         transforms.ToTensor(),
+#         transforms.Normalize([0.485,0.456,0.406], [0.229,0.224,0.225])
+#     ])
+    
+#     # Predict
+#     img = Image.open(image_path).convert('RGB')
+#     img_t = transform(img).unsqueeze(0)
+    
+#     with torch.no_grad():
+#         outputs = model(img_t)
+#         probs = torch.nn.functional.softmax(outputs[0], dim=0)
+#         confidence, predicted = torch.max(probs, 0)
+    
+#     class_names = checkpoint.get('train_classes', ['bearish', 'bullish', 'none'])
+#     class_name = class_names[predicted.item()]
+    
+#     return {
+#         "class": class_name,
+#         "confidence": confidence.item(),
+#         "is_hammer": class_name != "none"
+#     }
+def predict_hammer(image_path: str) -> dict:
+    """Predict hammer pattern from chart image"""
+    try:
+        checkpoint = torch.load("models/cv_hammer_multi.pth", map_location='cpu')
+        
+        if not checkpoint or not isinstance(checkpoint, dict):
+            logger.error("❌ Invalid checkpoint format")
+            return {"class": "none", "confidence": 0.0, "is_hammer": False}
+        
+        class_names = checkpoint.get('train_classes', ['bearish', 'bullish', 'none'])
+        num_classes = len(class_names)
+        
+        # Create model
+        model = models.resnet18(weights=None)
+        num_f = model.fc.in_features
+        model.fc = nn.Linear(num_f, num_classes)
+        
+        # Load weights
+        if 'model_state_dict' in checkpoint and checkpoint['model_state_dict']:
+            model.load_state_dict(checkpoint['model_state_dict'])
+        else:
+            logger.error("❌ No model_state_dict in checkpoint")
+            return {"class": "none", "confidence": 0.0, "is_hammer": False}
+        
+        model.eval()
+        
+        # Transform
+        transform = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        ])
+        
+        # Load image
+        if not Path(image_path).exists():
+            logger.warning(f"⚠️ Image not found: {image_path}")
+            return {"class": "none", "confidence": 0.0, "is_hammer": False}
+        
+        img = Image.open(image_path).convert('RGB')
+        img_t = transform(img).unsqueeze(0)
+        
+        # Predict - FIXED
+        with torch.no_grad():
+            outputs = model(img_t)  # Shape: (1, 3)
+            probs = torch.nn.functional.softmax(outputs[0], dim=0)  # Shape: (3,)
+            
+            # ✅ FIXED: Convert tensor scalars to Python values
+            confidence, predicted = torch.max(probs, 0)
+            confidence_value = confidence.item()  # ← Convert tensor to float
+            predicted_idx = predicted.item()      # ← Convert tensor to int
+        
+        class_name = class_names[predicted_idx]
+
+        logger.info(f"✅ Model prediction: {class_name} ({confidence_value:.1%})")
+
+
+        
+        return {
+            "class": class_name,
+            "confidence": confidence_value,
+            "is_hammer": class_name != "none"
+        }
+        
+    except FileNotFoundError as e:
+        logger.error(f"❌ Model file error: {e}")
+        return {"class": "none", "confidence": 0.0, "is_hammer": False}
+    except Exception as e:
+        logger.error(f"❌ Prediction error: {e}")
+        return {"class": "none", "confidence": 0.0, "is_hammer": False}
+
+
 
 if __name__ == "__main__":
     logger.info("=" * 80)
