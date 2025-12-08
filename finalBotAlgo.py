@@ -529,8 +529,6 @@ def run_for_instrument_and_timeframe(instrument: str, timeframe: str):
             # Get model prediction
             model_result = predict_hammer(chart_path)
 
-# After model_result = predict_hammer(chart_path)
-
             is_model_hammer = model_result["is_hammer"] and model_result["confidence"] >= 0.7
 
             bearish_confirmed = (
@@ -862,38 +860,6 @@ def save_candlestick_chart(df: pd.DataFrame, filename: str) -> bool:
         return False
 
 
-# def predict_hammer(image_path: str) -> dict:
-#     """Predict hammer pattern from chart image"""
-#     # Load your trained model
-#     checkpoint = torch.load("models/cv_hammer_multi.pth", map_location='cpu')
-#     model = ... # Load model architecture and weights (same as your training code)
-#     model.load_state_dict(checkpoint['model_state_dict'])
-#     model.eval()
-    
-#     # Transform
-#     transform = transforms.Compose([
-#         transforms.Resize((224, 224)),
-#         transforms.ToTensor(),
-#         transforms.Normalize([0.485,0.456,0.406], [0.229,0.224,0.225])
-#     ])
-    
-#     # Predict
-#     img = Image.open(image_path).convert('RGB')
-#     img_t = transform(img).unsqueeze(0)
-    
-#     with torch.no_grad():
-#         outputs = model(img_t)
-#         probs = torch.nn.functional.softmax(outputs[0], dim=0)
-#         confidence, predicted = torch.max(probs, 0)
-    
-#     class_names = checkpoint.get('train_classes', ['bearish', 'bullish', 'none'])
-#     class_name = class_names[predicted.item()]
-    
-#     return {
-#         "class": class_name,
-#         "confidence": confidence.item(),
-#         "is_hammer": class_name != "none"
-#     }
 def predict_hammer(image_path: str) -> dict:
     """Predict hammer pattern from chart image"""
     try:
