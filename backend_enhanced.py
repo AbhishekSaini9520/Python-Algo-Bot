@@ -1,19 +1,26 @@
+
 # """
-# backend.py - Enhanced Trading Bot Backend with Signal Broadcasting
-# Receives real trade data, signals, and historical trades from your bot
+# FIXED backend_enhanced.py - Converts deque to list for JSON
 # """
 
-# from flask import Flask, render_template, jsonify
+# from flask import Flask, render_template, jsonify, request, send_from_directory
 # from flask_cors import CORS
-# from flask_socketio import SocketIO, emit, disconnect
+# from flask_socketio import SocketIO, emit
 # import json
 # import time
-# import logging
-
 # import requests
+# import logging
 # from threading import Thread
 # from datetime import datetime
 # from collections import deque
+# from pathlib import Path
+# import logging
+# logging.basicConfig(level=logging.DEBUG)
+# from flask_socketio import SocketIO
+
+# app = Flask(__name__)
+# socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+
 
 # logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 # logger = logging.getLogger(__name__)
@@ -21,8 +28,9 @@
 # app = Flask(__name__)
 # CORS(app)
 # socketio = SocketIO(app, cors_allowed_origins="*")
+# socketio = SocketIO(app, cors_allowed_origins="*", logger=True, engineio_logger=True)
 
-# # ✅ ENHANCED BOT STATE with signal tracking
+
 # bot_state = {
 #     "status": "LIVE",
 #     "account_balance": 10000,
@@ -34,28 +42,23 @@
 #     "win_rate": 0,
 #     "profit_factor": 0,
 #     "active_positions": [],
-#     "recent_trades": deque(maxlen=100),  # Store last 100 trades
-#     "trading_signals": deque(maxlen=50),  # Store last 50 signals
+#     "recent_trades": deque(maxlen=100),
+#     "trading_signals": deque(maxlen=50),
 #     "config": {}
 # }
 
-# connected_clients = 0
-
-# # ✅ API ENDPOINT: Receive Trading Signals (Bullish hammer, Bearish hammer, etc)
+# def deque_to_list(obj):
+#     """Convert deque objects to lists for JSON serialization"""
+#     if isinstance(obj, deque):
+#         return list(obj)
+#     raise TypeError
 
 # @app.route('/api/signal', methods=['POST'])
 # def receive_signal():
-#     """
-#     Receive real-time trading signals from bot
-#     Examples:
-#     - "🟢 Bullish Hammer Detected | BTC_USD | M5"
-#     - "🔴 Bearish Hammer Detected | XAU_USD | M15"
-#     - "⏳ Candle Completed | BTC_USD | M5 | Close: 42150.25"
-#     """
-#     from flask import request
+#     """Receive real-time trading signals from bot"""
 #     try:
 #         data = request.get_json()
-#         signal_type = data.get('type')  # 'bullish', 'bearish', 'candle_complete', 'pattern_alert'
+#         signal_type = data.get('type')
 #         message = data.get('message')
 #         instrument = data.get('instrument')
 #         timeframe = data.get('timeframe')
@@ -69,37 +72,39 @@
 #             "timestamp_ms": time.time()
 #         }
         
-#         # Add to signals queue
 #         bot_state["trading_signals"].append(signal_event)
+#         logger.info(f"ðŸ“Š Signal received: {signal_type} | {instrument} | {timeframe}")
         
-#         logger.info(f"📊 Signal received: {signal_type} | {instrument} | {timeframe}")
-        
-#         # Broadcast to all dashboards
 #         socketio.emit('trading_signal', signal_event, to=None)
+
 #         socketio.emit('bot_update', {
-#             "signals": list(bot_state["trading_signals"]),
-#             "status": bot_state["status"]
+#             "status": bot_state["status"],
+#             "account_balance": bot_state["account_balance"],
+#             "floating_pnl": bot_state["floating_pnl"],
+#             "open_positions": bot_state["open_positions"],
+#             "total_trades": bot_state["total_trades"],
+#             "winning_trades": bot_state["winning_trades"],
+#             "losing_trades": bot_state["losing_trades"],
+#             "win_rate": bot_state["win_rate"],
+#             "active_positions": bot_state["active_positions"],
+#             "recent_trades": list(bot_state["recent_trades"]),
+#             "trading_signals": list(bot_state["trading_signals"]),
 #         }, to=None)
+
         
 #         return jsonify({"status": "success"}), 200
-    
 #     except Exception as e:
-#         logger.error(f"❌ Error processing signal: {e}")
+#         logger.error(f"âŒ Error processing signal: {e}")
 #         return jsonify({"status": "error", "message": str(e)}), 500
-
-
-# # ✅ API ENDPOINT: Receive New Trade
 
 # @app.route('/api/trade', methods=['POST'])
 # def receive_trade():
 #     """Receive new trade execution from bot"""
-#     from flask import request
 #     try:
 #         data = request.get_json()
-        
 #         trade = {
 #             "id": f"{data.get('instrument')}_{data.get('timeframe')}_{int(time.time())}",
-#             "type": data.get('type'),  # BUY or SELL
+#             "type": data.get('type'),
 #             "instrument": data.get('instrument'),
 #             "timeframe": data.get('timeframe'),
 #             "entry": data.get('entry'),
@@ -110,32 +115,37 @@
 #             "status": "OPEN"
 #         }
         
-#         # Add to active positions
 #         bot_state["active_positions"].append(trade)
 #         bot_state["open_positions"] = len(bot_state["active_positions"])
 #         bot_state["total_trades"] += 1
-        
-#         # Add to recent trades
 #         bot_state["recent_trades"].append(trade)
         
-#         logger.info(f"✅ Trade added: {trade['type']} {trade['instrument']} @ {trade['entry']}")
+#         logger.info(f"âœ… Trade added: {trade['type']} {trade['instrument']} @ {trade['entry']}")
         
-#         # Broadcast update
-#         socketio.emit('bot_update', bot_state, to=None)
+#         socketio.emit('bot_update', {
+#             "status": bot_state["status"],
+#             "account_balance": bot_state["account_balance"],
+#             "floating_pnl": bot_state["floating_pnl"],
+#             "open_positions": bot_state["open_positions"],
+#             "total_trades": bot_state["total_trades"],
+#             "winning_trades": bot_state["winning_trades"],
+#             "losing_trades": bot_state["losing_trades"],
+#             "win_rate": bot_state["win_rate"],
+#             "active_positions": bot_state["active_positions"],
+#             "recent_trades": list(bot_state["recent_trades"]),
+#             "trading_signals": list(bot_state["trading_signals"]),
+#         }, to=None)
+
+
         
 #         return jsonify({"status": "success"}), 200
-    
 #     except Exception as e:
-#         logger.error(f"❌ Error adding trade: {e}")
+#         logger.error(f"âŒ Error adding trade: {e}")
 #         return jsonify({"status": "error", "message": str(e)}), 500
-
-
-# # ✅ API ENDPOINT: Update Position P&L
 
 # @app.route('/api/position-update', methods=['POST'])
 # def update_position():
 #     """Update P&L for open position"""
-#     from flask import request
 #     try:
 #         data = request.get_json()
 #         instrument = data.get('instrument')
@@ -143,31 +153,38 @@
 #         pnl = data.get('pnl')
 #         current_price = data.get('current_price')
         
-#         # Find and update position
 #         for pos in bot_state["active_positions"]:
 #             if pos["instrument"] == instrument and pos["timeframe"] == timeframe:
 #                 pos["pnl"] = pnl
 #                 pos["current_price"] = current_price
 #                 break
         
-#         # Update floating P&L
 #         bot_state["floating_pnl"] = sum(p.get("pnl", 0) for p in bot_state["active_positions"])
         
-#         socketio.emit('bot_update', bot_state, to=None)
+#         socketio.emit('bot_update', {
+#             "status": bot_state["status"],
+#             "account_balance": bot_state["account_balance"],
+#             "floating_pnl": bot_state["floating_pnl"],
+#             "open_positions": bot_state["open_positions"],
+#             "total_trades": bot_state["total_trades"],
+#             "winning_trades": bot_state["winning_trades"],
+#             "losing_trades": bot_state["losing_trades"],
+#             "win_rate": bot_state["win_rate"],
+#             "active_positions": bot_state["active_positions"],
+#             "recent_trades": list(bot_state["recent_trades"]),
+#             "trading_signals": list(bot_state["trading_signals"]),
+#         }, to=None)
+
+
         
 #         return jsonify({"status": "success"}), 200
-    
 #     except Exception as e:
-#         logger.error(f"❌ Error updating position: {e}")
+#         logger.error(f"âŒ Error updating position: {e}")
 #         return jsonify({"status": "error", "message": str(e)}), 500
-
-
-# # ✅ API ENDPOINT: Close Trade
 
 # @app.route('/api/trade-close', methods=['POST'])
 # def close_trade():
 #     """Close a trade and calculate P&L"""
-#     from flask import request
 #     try:
 #         data = request.get_json()
 #         instrument = data.get('instrument')
@@ -175,7 +192,6 @@
 #         exit_price = data.get('exit_price')
 #         pnl = data.get('pnl')
         
-#         # Find trade in active positions
 #         for i, pos in enumerate(bot_state["active_positions"]):
 #             if pos["instrument"] == instrument and pos["timeframe"] == timeframe:
 #                 pos["exit_price"] = exit_price
@@ -183,58 +199,57 @@
 #                 pos["status"] = "CLOSED"
 #                 pos["close_time"] = datetime.now().strftime("%H:%M:%S")
                 
-#                 # Update win/loss counts
 #                 if pnl > 0:
 #                     bot_state["winning_trades"] += 1
 #                 else:
 #                     bot_state["losing_trades"] += 1
                 
-#                 # Move to recent trades
 #                 bot_state["recent_trades"].append(pos)
 #                 bot_state["active_positions"].pop(i)
 #                 break
         
-#         # Update metrics
 #         bot_state["open_positions"] = len(bot_state["active_positions"])
 #         bot_state["floating_pnl"] = sum(p.get("pnl", 0) for p in bot_state["active_positions"])
         
-#         # Calculate win rate
 #         total = bot_state["winning_trades"] + bot_state["losing_trades"]
 #         if total > 0:
 #             bot_state["win_rate"] = round((bot_state["winning_trades"] / total) * 100, 1)
         
-#         logger.info(f"🏁 Trade closed: {pnl} | Win rate: {bot_state['win_rate']}%")
+#         logger.info(f"ðŸ Trade closed: {pnl} | Win rate: {bot_state['win_rate']}%")
         
-#         socketio.emit('bot_update', bot_state, to=None)
+#         socketio.emit('bot_update', {
+#     "status": bot_state["status"],
+#     "account_balance": bot_state["account_balance"],
+#     "floating_pnl": bot_state["floating_pnl"],
+#     "open_positions": bot_state["open_positions"],
+#     "total_trades": bot_state["total_trades"],
+#     "winning_trades": bot_state["winning_trades"],
+#     "losing_trades": bot_state["losing_trades"],
+#     "win_rate": bot_state["win_rate"],
+#     "active_positions": bot_state["active_positions"],
+#     "recent_trades": list(bot_state["recent_trades"]),
+#     "trading_signals": list(bot_state["trading_signals"]),
+# }, to=None)
+
         
 #         return jsonify({"status": "success"}), 200
-    
 #     except Exception as e:
-#         logger.error(f"❌ Error closing trade: {e}")
+#         logger.error(f"âŒ Error closing trade: {e}")
 #         return jsonify({"status": "error", "message": str(e)}), 500
-
-
-# # ✅ API ENDPOINT: Load Historical Trades (from database or Oanda)
 
 # @app.route('/api/load-history', methods=['POST'])
 # def load_history():
-#     """
-#     Load all historical trades from your trading history
-#     You can call this from your bot to populate initial data
-#     """
-#     from flask import request
+#     """Load historical trades from Oanda"""
 #     try:
 #         data = request.get_json()
 #         historical_trades = data.get('trades', [])
         
-#         # Clear and reload
 #         bot_state["recent_trades"].clear()
 #         bot_state["active_positions"] = []
 #         bot_state["total_trades"] = 0
 #         bot_state["winning_trades"] = 0
 #         bot_state["losing_trades"] = 0
         
-#         # Process historical trades
 #         for trade in historical_trades:
 #             bot_state["recent_trades"].append(trade)
 #             bot_state["total_trades"] += 1
@@ -248,15 +263,27 @@
 #             elif trade.get("status") == "OPEN":
 #                 bot_state["active_positions"].append(trade)
         
-#         # Recalculate stats
 #         bot_state["open_positions"] = len(bot_state["active_positions"])
 #         total = bot_state["winning_trades"] + bot_state["losing_trades"]
 #         if total > 0:
 #             bot_state["win_rate"] = round((bot_state["winning_trades"] / total) * 100, 1)
         
-#         logger.info(f"📚 Loaded {len(historical_trades)} historical trades")
+#         logger.info(f"ðŸ“š Loaded {len(historical_trades)} historical trades")
         
-#         socketio.emit('bot_update', bot_state, to=None)
+#         socketio.emit('bot_update', {
+#     "status": bot_state["status"],
+#     "account_balance": bot_state["account_balance"],
+#     "floating_pnl": bot_state["floating_pnl"],
+#     "open_positions": bot_state["open_positions"],
+#     "total_trades": bot_state["total_trades"],
+#     "winning_trades": bot_state["winning_trades"],
+#     "losing_trades": bot_state["losing_trades"],
+#     "win_rate": bot_state["win_rate"],
+#     "active_positions": bot_state["active_positions"],
+#     "recent_trades": list(bot_state["recent_trades"]),
+#     "trading_signals": list(bot_state["trading_signals"]),
+# }, to=None)
+
         
 #         return jsonify({
 #             "status": "success",
@@ -264,66 +291,79 @@
 #             "total_trades": bot_state["total_trades"],
 #             "win_rate": bot_state["win_rate"]
 #         }), 200
-    
 #     except Exception as e:
-#         logger.error(f"❌ Error loading history: {e}")
+#         logger.error(f"âŒ Error loading history: {e}")
 #         return jsonify({"status": "error", "message": str(e)}), 500
 
+# @app.route('/')
+# def index():
+#     """Serve dashboard"""
+#     return render_template('dashboard_enhanced.html')
 
-# # ✅ API ENDPOINT: Get Current State
-
-# @app.route('/api/state', methods=['GET'])
-# def get_state():
-#     """Get current bot state"""
+# @app.route('/api/status')
+# def get_status():
+#     """Get bot status"""
 #     return jsonify({
-#         **bot_state,
-#         "recent_trades": list(bot_state["recent_trades"]),
-#         "trading_signals": list(bot_state["trading_signals"])
+#         "status": "success",
+#         "data": {
+#             "status": bot_state["status"],
+#             "total_trades": bot_state["total_trades"],
+#             "winning_trades": bot_state["winning_trades"],
+#             "losing_trades": bot_state["losing_trades"],
+#             "win_rate": bot_state["win_rate"],
+#             "open_positions": bot_state["open_positions"],
+#             "floating_pnl": bot_state["floating_pnl"],
+#             "recent_trades": list(bot_state["recent_trades"]),  # Convert deque to list
+#             "trading_signals": list(bot_state["trading_signals"])  # Convert deque to list
+#         }
 #     }), 200
 
+# @app.route('/charts/<path:filename>')
+# def serve_chart(filename):
+#     """Serve chart images from charts folder"""
+#     charts_dir = Path('charts')
+#     if not charts_dir.exists():
+#         charts_dir.mkdir(parents=True, exist_ok=True)
+#     return send_from_directory('charts', filename)
 
-# def fetch_oanda_account_balance():
-#     """Fetch account balance from Oanda API"""
+# @app.route('/api/chart-update', methods=['POST'])
+# def chart_update():
+#     """Receive chart update notification from bot"""
 #     try:
-#         api_key = "5c821a3a1a23d3b8a18ffb0b8d10d852-887ec40cabdda2551683deb7e6d329a4"
-#         account_id = "101-011-36217286-002"
-#         base_url = "https://api-fxpractice.oanda.com"
+#         data = request.get_json()
+#         instrument = data.get('instrument')
+#         timeframe = data.get('timeframe')
+#         chart_path = data.get('chart_path')
+#         timestamp = data.get('timestamp', datetime.now().isoformat())
         
-#         headers = {
-#             "Authorization": f"Bearer {api_key}",
-#             "Content-Type": "application/json"
-#         }
+#         logger.info(f"ðŸ“ˆ Chart update: {instrument} {timeframe} -> {chart_path}")
         
-#         url = f"{base_url}/v3/accounts/{account_id}"
-#         response = requests.get(url, headers=headers, timeout=10)
+#         # Emit chart update to frontend
+#         socketio.emit('bot_update', {
+#             "chart_update": {
+#                 "instrument": instrument,
+#                 "timeframe": timeframe,
+#                 "chart_path": chart_path.split('/')[-1] if '/' in chart_path else chart_path,  # Just filename
+#                 "timestamp": timestamp
+#             }
+#         }, to=None)
         
-#         if response.status_code == 200:
-#             data = response.json()
-#             balance = float(data.get("account", {}).get("balance", 10000))
-#             logger.info(f"💰 Account balance: ${balance:.2f}")
-#             return balance
-#         return None
+#         return jsonify({"status": "success"}), 200
 #     except Exception as e:
-#         logger.warning(f"⚠️ Error fetching balance: {e}")
-#         return None
+#         logger.error(f"âŒ Error processing chart update: {e}")
+#         return jsonify({"status": "error", "message": str(e)}), 500
 
-
-# # ✅ WEBSOCKET EVENTS
+# connected_clients = 0
 
 # @socketio.on('connect')
 # def handle_connect():
 #     global connected_clients
 #     connected_clients += 1
-#     logger.info(f"✅ Dashboard connected! (Total: {connected_clients})")
-    
-#     # ✅ FIX: Fetch balance before emitting
-#     balance = fetch_oanda_account_balance()
-#     if balance is not None:
-#         bot_state["account_balance"] = balance
-    
+#     logger.info(f"âœ… Dashboard connected! (Total: {connected_clients})")
+
 #     emit('initial_data', {
 #         "status": bot_state["status"],
-#         "account_balance": bot_state["account_balance"],  # ✅ Include balance
+#         "account_balance": bot_state["account_balance"],
 #         "floating_pnl": bot_state["floating_pnl"],
 #         "open_positions": bot_state["open_positions"],
 #         "total_trades": bot_state["total_trades"],
@@ -332,99 +372,72 @@
 #         "win_rate": bot_state["win_rate"],
 #         "active_positions": bot_state["active_positions"],
 #         "recent_trades": list(bot_state["recent_trades"]),
-#         "trading_signals": list(bot_state["trading_signals"])
+#         "trading_signals": list(bot_state["trading_signals"]),
 #     })
 
-
-
-# @socketio.on('disconnect')
-# def handle_disconnect():
-#     global connected_clients
-#     connected_clients -= 1
-#     logger.info(f"❌ Dashboard disconnected (Total: {connected_clients})")
-
-
-# @socketio.on('request_update')
-# def handle_update_request():
-#     """Dashboard can request fresh data"""
-#     emit('bot_update', {
-#         **bot_state,
+# @app.route('/api/status')
+# def get_status():
+#     """Get bot status"""
+#     print("Sending status data:", {
+#         "status": bot_state["status"],
+#         "total_trades": bot_state["total_trades"],
+#         "winning_trades": bot_state["winning_trades"],
+#         "losing_trades": bot_state["losing_trades"],
+#         "win_rate": bot_state["win_rate"],
+#         "open_positions": bot_state["open_positions"],
+#         "floating_pnl": bot_state["floating_pnl"],
 #         "recent_trades": list(bot_state["recent_trades"]),
-#         "trading_signals": list(bot_state["trading_signals"])
+#         "trading_signals": list(bot_state["trading_signals"]),
 #     })
+#     return jsonify({
+#         "status": "success",
+#         "data": {
+#             "status": bot_state["status"],
+#             "total_trades": bot_state["total_trades"],
+#             "winning_trades": bot_state["winning_trades"],
+#             "losing_trades": bot_state["losing_trades"],
+#             "win_rate": bot_state["win_rate"],
+#             "open_positions": bot_state["open_positions"],
+#             "floating_pnl": bot_state["floating_pnl"],
+#             "recent_trades": list(bot_state["recent_trades"]),
+#             "trading_signals": list(bot_state["trading_signals"]),
+#         }
+#     }), 200
 
 
-# def broadcast_bot_state():
-#     """Broadcast state every 2 seconds with balance fetch"""
-#     while True:
-#         try:
-#             if connected_clients > 0:
-#                 # ✅ FIX 1: Fetch balance from Oanda
-#                 balance = fetch_oanda_account_balance()
-#                 if balance is not None:
-#                     bot_state["account_balance"] = balance
-                
-#                 # ✅ FIX 2: Emit bot_state with proper structure
-#                 socketio.emit('bot_update', {
-#                     "status": bot_state["status"],
-#                     "account_balance": bot_state["account_balance"],  # ✅ Include balance
-#                     "floating_pnl": bot_state["floating_pnl"],
-#                     "open_positions": bot_state["open_positions"],
-#                     "total_trades": bot_state["total_trades"],
-#                     "winning_trades": bot_state["winning_trades"],
-#                     "losing_trades": bot_state["losing_trades"],
-#                     "win_rate": bot_state["win_rate"],
-#                     "active_positions": bot_state["active_positions"],
-#                     "recent_trades": list(bot_state["recent_trades"]),
-#                     "trading_signals": list(bot_state["trading_signals"])
-#                 }, to=None)
-#         except Exception as e:
-#             logger.warning(f"⚠️ Broadcast error: {e}")
-        
-#         time.sleep(2)
+# if __name__ == '__main__':
+#     logger.info("ðŸš€ Backend starting...")
+#     socketio.run(app, host='127.0.0.1', port=5000, debug=False)
 
 
-
-# if __name__ == "__main__":
-#     # Start background broadcasting
-#     socketio.start_background_task(broadcast_bot_state)
-    
-#     print("\n" + "="*80)
-#     print("🚀 TRADING BOT BACKEND SERVER (ENHANCED)")
-#     print("="*80)
-#     print(f"\n✅ WebSocket Server running on http://localhost:5000")
-#     print(f"✅ API Endpoints:")
-#     print(f"   - POST http://localhost:5000/api/signal (Trading signals)")
-#     print(f"   - POST http://localhost:5000/api/trade (New trades)")
-#     print(f"   - POST http://localhost:5000/api/position-update (Update P&L)")
-#     print(f"   - POST http://localhost:5000/api/trade-close (Close trades)")
-#     print(f"   - POST http://localhost:5000/api/load-history (Load history)")
-#     print(f"   - GET http://localhost:5000/api/state (Get state)")
-#     print(f"\n📊 Dashboard: Open dashboard.html in browser")
-#     print("\n" + "="*80 + "\n")
-    
-#     socketio.run(app, host="0.0.0.0", port=5000, debug=False)
 """
-FIXED backend_enhanced.py - Converts deque to list for JSON
+FIXED backend_enhanced.py - Clean version without duplicates
 """
 
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, send_from_directory
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit
 import json
 import time
+import requests
 import logging
 from threading import Thread
 from datetime import datetime
 from collections import deque
+from pathlib import Path
 
+# Setup logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 logger = logging.getLogger(__name__)
 
+# Create Flask app
 app = Flask(__name__)
 CORS(app)
-socketio = SocketIO(app, cors_allowed_origins="*")
 
+# Create SocketIO with threading mode (no eventlet needed)
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+
+# Bot state
 bot_state = {
     "status": "LIVE",
     "account_balance": 10000,
@@ -446,6 +459,11 @@ def deque_to_list(obj):
     if isinstance(obj, deque):
         return list(obj)
     raise TypeError
+
+
+# ============================================================================
+# API ROUTES
+# ============================================================================
 
 @app.route('/api/signal', methods=['POST'])
 def receive_signal():
@@ -469,8 +487,8 @@ def receive_signal():
         bot_state["trading_signals"].append(signal_event)
         logger.info(f"📊 Signal received: {signal_type} | {instrument} | {timeframe}")
         
-        socketio.emit('trading_signal', signal_event, to=None)
-
+        # Emit to all connected clients
+        socketio.emit('trading_signal', signal_event)
         socketio.emit('bot_update', {
             "status": bot_state["status"],
             "account_balance": bot_state["account_balance"],
@@ -483,13 +501,13 @@ def receive_signal():
             "active_positions": bot_state["active_positions"],
             "recent_trades": list(bot_state["recent_trades"]),
             "trading_signals": list(bot_state["trading_signals"]),
-        }, to=None)
+        })
 
-        
         return jsonify({"status": "success"}), 200
     except Exception as e:
         logger.error(f"❌ Error processing signal: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
 
 @app.route('/api/trade', methods=['POST'])
 def receive_trade():
@@ -528,14 +546,13 @@ def receive_trade():
             "active_positions": bot_state["active_positions"],
             "recent_trades": list(bot_state["recent_trades"]),
             "trading_signals": list(bot_state["trading_signals"]),
-        }, to=None)
+        })
 
-
-        
         return jsonify({"status": "success"}), 200
     except Exception as e:
         logger.error(f"❌ Error adding trade: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
 
 @app.route('/api/position-update', methods=['POST'])
 def update_position():
@@ -567,14 +584,13 @@ def update_position():
             "active_positions": bot_state["active_positions"],
             "recent_trades": list(bot_state["recent_trades"]),
             "trading_signals": list(bot_state["trading_signals"]),
-        }, to=None)
+        })
 
-
-        
         return jsonify({"status": "success"}), 200
     except Exception as e:
         logger.error(f"❌ Error updating position: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
 
 @app.route('/api/trade-close', methods=['POST'])
 def close_trade():
@@ -612,24 +628,24 @@ def close_trade():
         logger.info(f"🏁 Trade closed: {pnl} | Win rate: {bot_state['win_rate']}%")
         
         socketio.emit('bot_update', {
-    "status": bot_state["status"],
-    "account_balance": bot_state["account_balance"],
-    "floating_pnl": bot_state["floating_pnl"],
-    "open_positions": bot_state["open_positions"],
-    "total_trades": bot_state["total_trades"],
-    "winning_trades": bot_state["winning_trades"],
-    "losing_trades": bot_state["losing_trades"],
-    "win_rate": bot_state["win_rate"],
-    "active_positions": bot_state["active_positions"],
-    "recent_trades": list(bot_state["recent_trades"]),
-    "trading_signals": list(bot_state["trading_signals"]),
-}, to=None)
+            "status": bot_state["status"],
+            "account_balance": bot_state["account_balance"],
+            "floating_pnl": bot_state["floating_pnl"],
+            "open_positions": bot_state["open_positions"],
+            "total_trades": bot_state["total_trades"],
+            "winning_trades": bot_state["winning_trades"],
+            "losing_trades": bot_state["losing_trades"],
+            "win_rate": bot_state["win_rate"],
+            "active_positions": bot_state["active_positions"],
+            "recent_trades": list(bot_state["recent_trades"]),
+            "trading_signals": list(bot_state["trading_signals"]),
+        })
 
-        
         return jsonify({"status": "success"}), 200
     except Exception as e:
         logger.error(f"❌ Error closing trade: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
 
 @app.route('/api/load-history', methods=['POST'])
 def load_history():
@@ -638,65 +654,93 @@ def load_history():
         data = request.get_json()
         historical_trades = data.get('trades', [])
         
+        # Get account balance, floating P&L, and realized P&L from the data if provided
+        account_balance = data.get('account_balance')
+        floating_pnl = data.get('floating_pnl', 0)
+        realized_pl = data.get('realized_pl', 0)
+
         bot_state["recent_trades"].clear()
         bot_state["active_positions"] = []
         bot_state["total_trades"] = 0
         bot_state["winning_trades"] = 0
         bot_state["losing_trades"] = 0
-        
+
+        total_closed_pnl = 0.0
+
         for trade in historical_trades:
             bot_state["recent_trades"].append(trade)
             bot_state["total_trades"] += 1
-            
+
             if trade.get("status") == "CLOSED":
-                pnl = trade.get("pnl", 0)
+                pnl = float(trade.get("pnl", 0) or 0)
+                total_closed_pnl += pnl
                 if pnl > 0:
                     bot_state["winning_trades"] += 1
                 else:
                     bot_state["losing_trades"] += 1
             elif trade.get("status") == "OPEN":
                 bot_state["active_positions"].append(trade)
-        
+
         bot_state["open_positions"] = len(bot_state["active_positions"])
+
         total = bot_state["winning_trades"] + bot_state["losing_trades"]
         if total > 0:
             bot_state["win_rate"] = round((bot_state["winning_trades"] / total) * 100, 1)
-        
-        logger.info(f"📚 Loaded {len(historical_trades)} historical trades")
-        
-        socketio.emit('bot_update', {
-    "status": bot_state["status"],
-    "account_balance": bot_state["account_balance"],
-    "floating_pnl": bot_state["floating_pnl"],
-    "open_positions": bot_state["open_positions"],
-    "total_trades": bot_state["total_trades"],
-    "winning_trades": bot_state["winning_trades"],
-    "losing_trades": bot_state["losing_trades"],
-    "win_rate": bot_state["win_rate"],
-    "active_positions": bot_state["active_positions"],
-    "recent_trades": list(bot_state["recent_trades"]),
-    "trading_signals": list(bot_state["trading_signals"]),
-}, to=None)
 
-        
+        # Use account balance from Oanda if provided, otherwise derive from history
+        if account_balance is not None:
+            bot_state["account_balance"] = account_balance
+            bot_state["floating_pnl"] = floating_pnl if floating_pnl is not None else 0
+        else:
+            # Fallback to deriving balance from history
+            starting_balance = 10000
+            bot_state["account_balance"] = starting_balance + total_closed_pnl
+            bot_state["floating_pnl"] = sum(
+                float(p.get("pnl", 0) or 0) for p in bot_state["active_positions"]
+            )
+
+        logger.info(f"Loaded {len(historical_trades)} trades. "
+                    f"Account Balance={bot_state['account_balance']}, "
+                    f"Floating P&L={bot_state['floating_pnl']}, "
+                    f"Realized P&L received={realized_pl}")
+
+        socketio.emit('bot_update', {
+            "status": bot_state["status"],
+            "account_balance": bot_state["account_balance"],
+            "floating_pnl": bot_state["floating_pnl"],
+            "open_positions": bot_state["open_positions"],
+            "total_trades": bot_state["total_trades"],
+            "winning_trades": bot_state["winning_trades"],
+            "losing_trades": bot_state["losing_trades"],
+            "win_rate": bot_state["win_rate"],
+            "active_positions": bot_state["active_positions"],
+            "recent_trades": list(bot_state["recent_trades"]),
+            "trading_signals": list(bot_state["trading_signals"]),
+        })
+
         return jsonify({
             "status": "success",
             "trades_loaded": len(historical_trades),
             "total_trades": bot_state["total_trades"],
-            "win_rate": bot_state["win_rate"]
+            "win_rate": bot_state["win_rate"],
+            "account_balance": bot_state["account_balance"],
+            "floating_pnl": bot_state["floating_pnl"],
         }), 200
     except Exception as e:
-        logger.error(f"❌ Error loading history: {e}")
+        logger.error(f"Error loading history: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
 
 @app.route('/')
 def index():
     """Serve dashboard"""
     return render_template('dashboard_enhanced.html')
 
+
 @app.route('/api/status')
 def get_status():
-    """Get bot status"""
+    # bot_state["account_balance"] = 12345
+    # bot_state["floating_pnl"] = 99.99
     return jsonify({
         "status": "success",
         "data": {
@@ -707,12 +751,55 @@ def get_status():
             "win_rate": bot_state["win_rate"],
             "open_positions": bot_state["open_positions"],
             "floating_pnl": bot_state["floating_pnl"],
-            "recent_trades": list(bot_state["recent_trades"]),  # Convert deque to list
-            "trading_signals": list(bot_state["trading_signals"])  # Convert deque to list
+            "account_balance": bot_state["account_balance"],
+            "recent_trades": list(bot_state["recent_trades"]),
+            "trading_signals": list(bot_state["trading_signals"])
         }
     }), 200
 
+
+@app.route('/charts/<path:filename>')
+def serve_chart(filename):
+    """Serve chart images from charts folder"""
+    charts_dir = Path('charts')
+    if not charts_dir.exists():
+        charts_dir.mkdir(parents=True, exist_ok=True)
+    return send_from_directory('charts', filename)
+
+
+@app.route('/api/chart-update', methods=['POST'])
+def chart_update():
+    """Receive chart update notification from bot"""
+    try:
+        data = request.get_json()
+        instrument = data.get('instrument')
+        timeframe = data.get('timeframe')
+        chart_path = data.get('chart_path')
+        timestamp = data.get('timestamp', datetime.now().isoformat())
+        
+        logger.info(f"📊 Chart update: {instrument} {timeframe} - {chart_path}")
+        
+        socketio.emit('bot_update', {
+            "chart_update": {
+                "instrument": instrument,
+                "timeframe": timeframe,
+                "chart_path": chart_path.split('\\')[-1] if '\\' in chart_path else chart_path,
+                "timestamp": timestamp
+            }
+        }, broadcast=True)
+        
+        return jsonify({"status": "success"}), 200
+    except Exception as e:
+        logger.error(f"❌ Error processing chart update: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ============================================================================
+# SOCKETIO EVENTS
+# ============================================================================
+
 connected_clients = 0
+
 
 @socketio.on('connect')
 def handle_connect():
@@ -720,7 +807,7 @@ def handle_connect():
     connected_clients += 1
     logger.info(f"✅ Dashboard connected! (Total: {connected_clients})")
 
-    emit('initial_data', {
+    socketio.emit('initial_data', {
         "status": bot_state["status"],
         "account_balance": bot_state["account_balance"],
         "floating_pnl": bot_state["floating_pnl"],
@@ -735,6 +822,19 @@ def handle_connect():
     })
 
 
+@socketio.on('disconnect')
+def handle_disconnect():
+    global connected_clients
+    connected_clients -= 1
+    logger.info(f"❌ Dashboard disconnected! (Total: {connected_clients})")
+
+
+# ============================================================================
+# MAIN
+# ============================================================================
+
 if __name__ == '__main__':
-    logger.info("🚀 Backend starting...")
-    socketio.run(app, host='127.0.0.1', port=5000, debug=False)
+    logger.info("🚀 Backend starting on http://127.0.0.1:5000...")
+    socketio.run(app, host='127.0.0.1', port=5000, debug=False, allow_unsafe_werkzeug=True)
+
+

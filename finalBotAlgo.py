@@ -42,9 +42,10 @@ from pathlib import Path
 from dataclasses import dataclass, field
 from threading import Thread
 from typing import Dict
+import json
+from pathlib import Path
 
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -52,21 +53,6 @@ import requests
 
 BACKEND_URL = "http://localhost:5000"
 
-
-
-def update_backend(event_type, data):
-    """Send updates to backend"""
-    try:
-        requests.post(
-            f"{BACKEND_URL}/api/update",
-            json={"event": event_type, "data": data},
-            timeout=2
-        )
-        logger.info(f"✅ Backend updated: {event_type}")
-    except requests.exceptions.ConnectionError:
-        logger.warning("⚠️ Backend server not running. Start it with: python backend.py")
-    except Exception as e:
-        logger.warning(f"⚠️ Backend update failed: {e}")
 
 
 @dataclass
@@ -318,14 +304,6 @@ def place_market_buy_with_sl_tp(instrument: str, units: int, sl_price: float, tp
         logging.info(f"✅ BUY order placed for {instrument}: Entry={entry:.{precision}f}, SL={sl_price:.{precision}f}, TP={tp_price:.{precision}f}, ATR={atr:.{precision}f}")
         add_active_position(instrument, timeframe, "BUY", entry)
                 # ✅ SEND TO DASHBOARD
-        update_backend("new_trade", {
-            "type": "BUY",
-            "instrument": instrument,
-            "entry": round(entry, precision),
-            "sl": sl_price,
-            "tp": tp_price,
-            "timeframe": timeframe
-        })
 
         return True
     else:
@@ -360,14 +338,6 @@ def place_market_sell_with_sl_tp(instrument: str, units: int, sl_price: float, t
         logging.info(f"✅ SELL order placed for {instrument}: Entry={entry:.{precision}f}, SL={sl_price:.{precision}f}, TP={tp_price:.{precision}f}, ATR={atr:.{precision}f}")
         add_active_position(instrument, timeframe, "SELL", entry)
                 # ✅ SEND TO DASHBOARD
-        update_backend("new_trade", {
-            "type": "SELL",
-            "instrument": instrument,
-            "entry": round(entry, precision),
-            "sl": sl_price,
-            "tp": tp_price,
-            "timeframe": timeframe
-        })
 
         return True
     else:
@@ -539,57 +509,25 @@ def run_for_instrument_and_timeframe(instrument: str, timeframe: str):
                 time.sleep(CFG.poll_sec)
                 continue
 
+                        # ✅ NEW: Send position updates for live P&L
+            current_price = last["close"]
+            key = get_position_key(instrument, timeframe)
+            if key in active_positions:
+                pos = active_positions[key]
+                entry = pos["entry"]
+                if pos["type"] == "BUY":
+                    pnl = current_price - entry
+                else:  # SELL
+                    pnl = entry - current_price
+                send_position_update(instrument, timeframe, current_price, pnl)
+
+
             # Save chart for model prediction
             chart_path = f"charts/{instrument}_{timeframe}_{int(time.time())}.png"
             save_candlestick_chart(df.tail(40), chart_path)  # Last 40 candles for chart
 
             # Get model prediction
             model_result = predict_hammer(chart_path)
-
-            # OR logic: if either model or logic detects a signal
-            # if (model_result["is_hammer"] and model_result["confidence"] > 0.7) or (is_bearish_hammer(last) and is_downtrend(last)):
-            #     entry = last["close"]
-            #     send_signal(
-            #         "bearish",
-            #         f"🔴 Bearish Hammer Detected | {instrument} {timeframe} | Entry: ${entry:.2f}",
-            #         instrument,
-            #         timeframe
-            #     )
-            #     sl_price, tp_price, sl_dist, tp_dist = calculate_dynamic_sl_tp(entry, atr, precision, "SELL")
-            #     send_new_trade("SELL", instrument, timeframe, entry, sl_price, tp_price)
-            #     if sl_price <= entry and tp_price < entry:
-            #         update_backend("new_trade", {
-            #             "type": "SELL",
-            #             "instrument": instrument,
-            #             "entry": entry,
-            #             "sl": sl_price,
-            #             "tp": tp_price
-            #         })
-            #         logging.info(f"🔴 SELL signal! Entry={entry:.{precision}f}, SL={sl_price:.{precision}f}, TP={tp_price:.{precision}f}")
-            #         place_market_sell_with_sl_tp(instrument, CFG.units, sl_price=sl_price, tp_price=tp_price, 
-            #                                    entry=entry, atr=atr, timeframe=timeframe)
-
-            # elif (model_result["is_hammer"] and model_result["confidence"] > 0.7) or (is_bullish_hammer(last) and is_uptrend(last)):
-            #     entry = last["close"]
-            #     send_signal(
-            #         "bullish",
-            #         f"🟢 Bullish Hammer Detected | {instrument} {timeframe} | Entry: ${entry:.2f}",
-            #         instrument,
-            #         timeframe
-            #     )
-            #     sl_price, tp_price, sl_dist, tp_dist = calculate_dynamic_sl_tp(entry, atr, precision, "BUY")
-            #     send_new_trade("BUY", instrument, timeframe, entry, sl_price, tp_price)
-            #     if sl_price < entry and tp_price > entry:
-            #         update_backend("new_trade", {
-            #             "type": "BUY",
-            #             "instrument": instrument,
-            #             "entry": entry,
-            #             "sl": sl_price,
-            #             "tp": tp_price
-            #         })
-            #         logging.info(f"🟢 BUY signal! Entry={entry:.{precision}f}, SL={sl_price:.{precision}f}, TP={tp_price:.{precision}f}")
-            #         place_market_buy_with_sl_tp(instrument, CFG.units, sl_price=sl_price, tp_price=tp_price, 
-            #                                   entry=entry, atr=atr, timeframe=timeframe)
 
 # After model_result = predict_hammer(chart_path)
 
@@ -617,14 +555,7 @@ def run_for_instrument_and_timeframe(instrument: str, timeframe: str):
                 )
                 sl_price, tp_price, sl_dist, tp_dist = calculate_dynamic_sl_tp(entry, atr, precision, "SELL")
                 send_new_trade("SELL", instrument, timeframe, entry, sl_price, tp_price)
-                if sl_price <= entry and tp_price < entry:
-                    update_backend("new_trade", {
-                        "type": "SELL",
-                        "instrument": instrument,
-                        "entry": entry,
-                        "sl": sl_price,
-                        "tp": tp_price,
-                    })
+                
                 place_market_sell_with_sl_tp(
                     instrument, CFG.units,
                     sl_price=sl_price, tp_price=tp_price,
@@ -641,14 +572,7 @@ def run_for_instrument_and_timeframe(instrument: str, timeframe: str):
                 )
                 sl_price, tp_price, sl_dist, tp_dist = calculate_dynamic_sl_tp(entry, atr, precision, "BUY")
                 send_new_trade("BUY", instrument, timeframe, entry, sl_price, tp_price)
-                if sl_price < entry and tp_price > entry:
-                    update_backend("new_trade", {
-                        "type": "BUY",
-                        "instrument": instrument,
-                        "entry": entry,
-                        "sl": sl_price,
-                        "tp": tp_price,
-                    })
+                
                 place_market_buy_with_sl_tp(
                     instrument, CFG.units,
                     sl_price=sl_price, tp_price=tp_price,
@@ -694,6 +618,7 @@ def load_historical_trades():
             return
         
         resp_json = resp.json()
+
         trades_data = resp_json.get("trades", [])
         logger.info(f"📚 Found {len(trades_data)} closed trades in Oanda")
         
@@ -725,9 +650,11 @@ def load_historical_trades():
                 # Extract timestamp (handle both formats)
                 try:
                     if "T" in close_time:
-                        timestamp = close_time.split("T")[:8]
+                        # Extract just the date and time part before the dot
+                        timestamp_parts = close_time.split(".")[0]  # Remove milliseconds
+                        timestamp = timestamp_parts.replace("T", " ")  # Replace T with space
                     else:
-                        timestamp = close_time[:8]
+                        timestamp = close_time[:19] if len(close_time) > 19 else close_time  # First 19 characters
                 except:
                     timestamp = "N/A"
                 
@@ -770,15 +697,43 @@ def load_historical_trades():
         logger.info(f"   - Winning: {winning_count}")
         logger.info(f"   - Losing: {losing_count}")
         logger.info(f"   - Total P&L: ${total_pnl:.2f}")
+
+        summary_url = f"{CFG.base_url}/v3/accounts/{CFG.account_id}/summary"
+        logger.info(f"📡 Requesting Oanda account summary: {summary_url}")
+        summary_resp = requests.get(summary_url, headers=HEADERS, timeout=15)
+        logger.info(f"📨 Oanda summary response status: {summary_resp.status_code}")
+
+        current_balance = 0.0
+        unrealized_pl = 0.0
+        realized_pl = 0.0
+        if summary_resp.status_code != 200:
+            logger.warning(f"⚠️ Failed to fetch account summary: {summary_resp.status_code}")
+            logger.warning(f"⚠️ Summary response: {summary_resp.text[:300]}")
+        else:
+            account = summary_resp.json().get("account", {})
+            # Strings → float
+            current_balance = float(account.get("balance", 0.0))
+            unrealized_pl = float(account.get("unrealizedPL", 0.0))    # open-trade P&L
+            realized_pl = float(account.get("pl", 10.0))  # realized P&L
+            logger.info(
+                f"💰 Account summary: balance={current_balance}, "
+                f"unrealizedPL={unrealized_pl}, realizedPL={realized_pl}"
+            )
         
         # Send to backend
         logger.info(f"📨 Sending {len(historical_trades)} trades to backend...")
         r2 = requests.post(
             f"{BACKEND_URL}/api/load-history",
-            json={"trades": historical_trades},
+            json={
+                "trades": historical_trades,
+                "account_balance": current_balance,   # <- new
+                "floating_pnl": realized_pl,              # <- open positions P&L
+                "realized_pl": realized_pl                  # <- closed trades P&L
+            },
             timeout=10,
         )
-        
+
+
         logger.info(f"📨 Backend response status: {r2.status_code}")
         logger.info(f"📨 Backend response: {r2.text[:200]}")
         
@@ -806,7 +761,7 @@ def send_signal(signal_type, message, instrument, timeframe):
         )
         logger.info(f"📊 Signal sent: {signal_type} | {instrument} | {timeframe}")
     except Exception as e:
-        logger.debug(f"Signal send skipped: {e}")
+        logger.warning(f"⚠️ Failed to send signal to backend: {e}")
 
 
 def send_new_trade(trade_type, instrument, timeframe, entry, sl, tp):
@@ -826,7 +781,7 @@ def send_new_trade(trade_type, instrument, timeframe, entry, sl, tp):
         )
         logger.info(f"✅ Trade sent to dashboard: {trade_type} {instrument}")
     except Exception as e:
-        logger.debug(f"Trade send skipped: {e}")
+        logger.warning(f"⚠️ Failed to send trade to backend: {e}")
 
 
 def send_trade_close(instrument, timeframe, exit_price, pnl):
@@ -843,7 +798,7 @@ def send_trade_close(instrument, timeframe, exit_price, pnl):
             timeout=2
         )
     except Exception as e:
-        logger.debug(f"Trade close send skipped: {e}")
+        logger.warning(f"⚠️ Failed to send trade close to backend: {e}")
 
 
 # def save_candlestick_chart(df: pd.DataFrame, filename: str):
@@ -1008,6 +963,22 @@ def predict_hammer(image_path: str) -> dict:
     except Exception as e:
         logger.error(f"❌ Prediction error: {e}")
         return {"class": "none", "confidence": 0.0, "is_hammer": False}
+
+
+def send_position_update(instrument, timeframe, current_price, pnl):
+    try:
+        requests.post(
+            f"{BACKEND_URL}/api/position-update",
+            json={
+                "instrument": instrument,
+                "timeframe": timeframe,
+                "current_price": current_price,
+                "pnl": pnl,
+            },
+            timeout=2,
+        )
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to send position update to backend: {e}")
 
 
 

@@ -3,6 +3,18 @@
 // ✅ WEBSOCKET CONNECTION
 const socket = io('http://localhost:5000');
 
+// 🎨 Add mouse tracking for card glow effects
+document.addEventListener('mousemove', (e) => {
+    const cards = document.querySelectorAll('.status-card');
+    cards.forEach(card => {
+        const rect = card.getBoundingClientRect();
+        const x = ((e.clientX - rect.left) / rect.width) * 100;
+        const y = ((e.clientY - rect.top) / rect.height) * 100;
+        card.style.setProperty('--mouse-x', `${x}%`);
+        card.style.setProperty('--mouse-y', `${y}%`);
+    });
+});
+
 let botData = {
     status: "DISCONNECTED",
     account_balance: 0,  // ✅ Start with 0, backend से आएगा
@@ -25,6 +37,7 @@ socket.on('initial_data', (data) => {
         ...botData,
         ...data  // ✅ Merge incoming data (includes account_balance)
     };
+    console.log(botData);
     renderDashboard();
     updateSystemStatus('✅ All systems connected', 'success');
 });
@@ -80,39 +93,70 @@ function updateStatusBar() {
     const tradesEl = document.getElementById('total-trades');
     
     // ✅ FIX: Only update if elements exist
-    if (statusEl) statusEl.textContent = botData.status || 'OFFLINE';
-    if (balanceEl) balanceEl.textContent = '$' + formatNumber(botData.account_balance || 0);
-    
+    if (statusEl) {
+        statusEl.textContent = botData.status || 'OFFLINE';
+    }
+    if (balanceEl) {
+        const balance = Number(botData.account_balance ?? 0);
+        balanceEl.textContent = '$' + formatNumber(balance);
+    }
     if (pnlEl) {
-        const pnl = botData.floating_pnl || 0;
+        const pnl = Number(botData.floating_pnl ?? 0);
         pnlEl.textContent = (pnl >= 0 ? '+' : '') + '$' + formatNumber(pnl);
         pnlEl.style.color = pnl >= 0 ? '#10b981' : '#ef4444';
     }
-    
-    if (positionsEl) positionsEl.textContent = botData.open_positions || 0;
-    
-    if (winRateEl) {
-        winRateEl.textContent = (botData.win_rate || 0) + '%';
-        winRateEl.style.color = (botData.win_rate || 0) >= 30 ? '#10b981' : '#ef4444';
+    if (positionsEl) {
+        positionsEl.textContent = botData.open_positions ?? 0;
     }
-    
-    if (tradesEl) tradesEl.textContent = botData.total_trades || 0;
+    if (winRateEl) {
+        const wr = Number(botData.win_rate ?? 0);
+        winRateEl.textContent = wr + '%';
+        winRateEl.style.color = wr >= 30 ? '#10b981' : '#ef4444';
+    }
+    if (tradesEl) {
+        tradesEl.textContent = botData.total_trades ?? 0;
+    }
 }
 
 
 function updatePerformanceMetrics() {
-    document.getElementById('stat-total-trades').textContent = botData.total_trades || 0;
-    document.getElementById('stat-win-rate').textContent = (botData.win_rate || 0) + '%';
-    document.getElementById('stat-winning').textContent = botData.winning_trades || 0;
-    document.getElementById('stat-losing').textContent = botData.losing_trades || 0;
+        const totalTradesEl = document.getElementById('stat-total-trades');
+    const winRateEl = document.getElementById('stat-win-rate');
+    const winningEl = document.getElementById('stat-winning');
+    const losingEl = document.getElementById('stat-losing');
+    const floatingEl = document.getElementById('stat-floating-pnl');
+    const balanceEl = document.getElementById('stat-balance');
     
     const floatingPnl = botData.floating_pnl || 0;
-    const floatingEl = document.getElementById('stat-floating-pnl');
+    // const floatingEl = document.getElementById('stat-floating-pnl');
     floatingEl.textContent = (floatingPnl >= 0 ? '+' : '') + '$' + formatNumber(floatingPnl);
     floatingEl.style.color = floatingPnl >= 0 ? '#10b981' : '#ef4444';
     
     document.getElementById('stat-balance').textContent = 
         '$' + formatNumber(botData.account_balance || 0);
+
+        if (totalTradesEl) {
+        totalTradesEl.textContent = botData.total_trades ?? 0;
+    }
+    if (winRateEl) {
+        const wr = Number(botData.win_rate ?? 0);
+        winRateEl.textContent = wr + '%';
+    }
+    if (winningEl) {
+        winningEl.textContent = botData.winning_trades ?? 0;
+    }
+    if (losingEl) {
+        losingEl.textContent = botData.losing_trades ?? 0;
+    }
+    if (floatingEl) {
+        const floatingPnl = Number(botData.floating_pnl ?? 0);
+        floatingEl.textContent = (floatingPnl >= 0 ? '+' : '') + '$' + formatNumber(floatingPnl);
+        floatingEl.style.color = floatingPnl >= 0 ? '#10b981' : '#ef4444';
+    }
+    if (balanceEl) {
+        const balance = Number(botData.account_balance ?? 0);
+        balanceEl.textContent = '$' + formatNumber(balance);
+    }
 }
 
 function renderActivePositions() {
@@ -278,11 +322,11 @@ function formatNumber(num) {
 
 function refreshPositions() {
     console.log('🔄 Refreshing positions...');
-    socket.emit('request_update');
+    socket.emit('bot_update');
 }
 
 function playSignalSound() {
-    // Optional: Play notification sound when signal arrives
+    // 🎵 Enhanced notification sound with better tones
     try {
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
         const oscillator = audioContext.createOscillator();
@@ -291,18 +335,63 @@ function playSignalSound() {
         oscillator.connect(gainNode);
         gainNode.connect(audioContext.destination);
         
-        oscillator.frequency.value = 800;
-        oscillator.type = 'sine';
+        // 🎼 Play a pleasant chord progression
+        const notes = [523.25, 659.25, 783.99]; // C5, E5, G5
+        let time = audioContext.currentTime;
         
-        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+        notes.forEach((freq, i) => {
+            const osc = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            osc.connect(gain);
+            gain.connect(audioContext.destination);
+            
+            osc.frequency.value = freq;
+            osc.type = 'sine';
+            
+            gain.gain.setValueAtTime(0.15, time);
+            gain.gain.exponentialRampToValueAtTime(0.01, time + 0.3);
+            
+            osc.start(time + (i * 0.1));
+            osc.stop(time + (i * 0.1) + 0.3);
+        });
         
-        oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + 0.5);
+        // ✨ Add visual notification
+        showNotificationFlash();
     } catch (e) {
         console.log('Audio notification skipped');
     }
 }
+
+// ✨ Visual notification flash
+function showNotificationFlash() {
+    const flash = document.createElement('div');
+    flash.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 16px 24px;
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.9), rgba(139, 92, 246, 0.9));
+        color: white;
+        border-radius: 12px;
+        box-shadow: 0 8px 32px rgba(59, 130, 246, 0.4);
+        z-index: 9999;
+        animation: slideInRight 0.3s ease-out, fadeOut 0.3s ease-in 2.7s;
+        font-weight: 600;
+        backdrop-filter: blur(10px);
+    `;
+    flash.textContent = '📊 New Signal Received!';
+    document.body.appendChild(flash);
+    
+    setTimeout(() => flash.remove(), 3000);
+}
+
+// Add this to see what data you're receiving
+socket.on('initial_data', (data) => {
+    console.log("Initial data received:", data);
+    console.log("Account balance:", data.account_balance);
+    console.log("Floating P&L:", data.floating_pnl);
+});
+
 
 // ✅ INITIAL LOAD
 console.log('🚀 Enhanced Dashboard initialized');
@@ -310,12 +399,18 @@ console.log('📡 Connecting to WebSocket: http://localhost:5000');
 
 // Request update on page load
 setTimeout(() => {
-    socket.emit('request_update');
+    socket.emit('bot_update');
 }, 1000);
+
+const originalOn = socket.on.bind(socket);
+socket.on = function(eventName, callback) {
+    console.log(`✅ Listening for event: ${eventName}`);
+    return originalOn(eventName, callback);
+};
 
 // Periodic update request (every 5 seconds)
 setInterval(() => {
     if (socket.connected) {
-        socket.emit('request_update');
+        socket.emit('bot_update');
     }
 }, 5000);
