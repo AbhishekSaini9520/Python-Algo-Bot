@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 
 import requests
 
-BACKEND_URL = "http://localhost:5000"
+BACKEND_URL = "http://0.0.0.0:5001"
 
 
 
@@ -97,7 +97,7 @@ INSTRUMENT_PRECISION = {
 active_positions: Dict[str, Dict] = {}
 
 def send_signal(signal_type, message, instrument, timeframe):
-    requests.post('http://localhost:5000/api/signal', json={
+    requests.post('http://0.0.0.0:5000/api/signal', json={
         "type": signal_type,  # 'bullish', 'bearish', 'candle_complete'
         "message": message,
         "instrument": instrument,

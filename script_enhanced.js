@@ -1,7 +1,7 @@
 // Trading Bot Dashboard - Enhanced JavaScript with Real-time Signals
 
 // ✅ WEBSOCKET CONNECTION
-const socket = io('http://localhost:5000');
+const socket = io('http://0.0.0.0:5001');
 
 // 🎨 Add mouse tracking for card glow effects
 document.addEventListener('mousemove', (e) => {
@@ -395,7 +395,7 @@ socket.on('initial_data', (data) => {
 
 // ✅ INITIAL LOAD
 console.log('🚀 Enhanced Dashboard initialized');
-console.log('📡 Connecting to WebSocket: http://localhost:5000');
+console.log('📡 Connecting to WebSocket: http://localhost:5001');
 
 // Request update on page load
 setTimeout(() => {
@@ -413,4 +413,4 @@ setInterval(() => {
     if (socket.connected) {
         socket.emit('bot_update');
     }
-}, 5000);
+}, 5001);

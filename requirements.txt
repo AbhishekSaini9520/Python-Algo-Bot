@@ -1,0 +1,28 @@
+
+# Trading Bot - Complete Requirements
+# Python 3.10+
+
+# Web Framework & API
+Flask
+Flask-CORS
+flask-socketio
+python-socketio
+
+# HTTP & Requests
+requests
+urllib3
+
+# Data Processing
+pandas
+numpy
+
+# Deep Learning & Model
+torch
+torchvision
+Pillow
+
+# Visualization & Charting
+matplotlib
+
+# Utilities
+python-dotenv
